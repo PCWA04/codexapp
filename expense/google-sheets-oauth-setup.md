@@ -53,8 +53,8 @@ http://localhost:5181
 下一步會在 App 加入這兩個設定：
 
 ```js
-const GOOGLE_CLIENT_ID = "你的 OAuth Client ID";
-const GOOGLE_SHEET_ID = "你的 Spreadsheet ID";
+const GOOGLE_CLIENT_ID = "189512278313-fmmadnbqpl80pciircnihm3i87cgtq54.apps.googleusercontent.com";
+const GOOGLE_SHEET_ID = "1rDVgLrX1igIEyJI7bqtfWhyRIlH1wD3jdF4jDrPr780";
 ```
 
 ## 5. 同步策略

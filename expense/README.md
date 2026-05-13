@@ -9,7 +9,7 @@
 - 顯示今日消費總額
 - 依日、月、年查看總消費、筆數、分類統計與期間紀錄
 - 資料儲存在瀏覽器本機 IndexedDB，並保留 localStorage 備援
-- 資料模型已包含同步狀態，準備接 Google Sheet
+- 可手動連接 Google，將資料同步到 Google Sheet
 - 已加入基本 PWA 設定與離線快取
 
 使用方式：

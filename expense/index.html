@@ -81,6 +81,18 @@
           <input id="periodInput" type="date" />
         </label>
 
+        <section class="panel sync-panel">
+          <div class="section-title">
+            <h2>Google Sheet</h2>
+            <span class="sync-badge" id="syncBadge">未連接</span>
+          </div>
+          <div class="sync-actions">
+            <button class="secondary-button" id="connectGoogleButton" type="button">連接 Google</button>
+            <button class="primary-button compact" id="syncButton" type="button" disabled>同步</button>
+          </div>
+          <p class="sync-status" id="syncStatus">連接後可把本機資料同步到 Google Sheet。</p>
+        </section>
+
         <div class="summary-grid">
           <article class="metric">
             <span>總消費</span>

@@ -1,4 +1,4 @@
-const CACHE_NAME = "mobile-ledger-v1";
+const CACHE_NAME = "mobile-ledger-v2";
 const APP_FILES = ["./", "index.html", "styles.css", "app.js", "manifest.json"];
 
 self.addEventListener("install", (event) => {

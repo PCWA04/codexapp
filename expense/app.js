@@ -2,6 +2,25 @@ const LEGACY_STORAGE_KEY = "mobile-ledger-expenses-v1";
 const DB_NAME = "mobile-ledger-db";
 const DB_VERSION = 1;
 const STORE_NAME = "expenses";
+const GOOGLE_CLIENT_ID = "189512278313-fmmadnbqpl80pciircnihm3i87cgtq54.apps.googleusercontent.com";
+const GOOGLE_SHEET_ID = "1rDVgLrX1igIEyJI7bqtfWhyRIlH1wD3jdF4jDrPr780";
+const GOOGLE_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+const SHEET_NAME = "Expenses";
+const SHEET_COLUMNS = [
+  "id",
+  "date",
+  "amount",
+  "categoryId",
+  "categoryName",
+  "note",
+  "createdAt",
+  "updatedAt",
+  "deletedAt",
+  "syncStatus",
+  "syncedAt",
+  "deviceId",
+  "syncVersion",
+];
 
 const categories = [
   { id: "food", name: "餐飲", color: "#c65b3b" },
@@ -34,12 +53,18 @@ const periodTotal = $("#periodTotal");
 const periodCount = $("#periodCount");
 const categoryChart = $("#categoryChart");
 const periodList = $("#periodList");
+const connectGoogleButton = $("#connectGoogleButton");
+const syncButton = $("#syncButton");
+const syncBadge = $("#syncBadge");
+const syncStatus = $("#syncStatus");
 
 let expenses = [];
 let activePeriod = "day";
 let selectedDate = getToday();
 let db = null;
 let storageMode = "memory";
+let accessToken = "";
+let tokenClient = null;
 
 function getToday() {
   return formatLocalDate(new Date());
@@ -151,6 +176,44 @@ function normalizeExpense(expense) {
   };
 }
 
+function getCategoryName(categoryId) {
+  return getCategory(categoryId).name;
+}
+
+function expenseToSheetRow(expense) {
+  return [
+    expense.id,
+    expense.date,
+    String(expense.amount),
+    expense.categoryId,
+    getCategoryName(expense.categoryId),
+    expense.note || "",
+    expense.createdAt,
+    expense.updatedAt,
+    expense.deletedAt || "",
+    expense.syncStatus || "pending",
+    expense.syncedAt || "",
+    expense.deviceId || "",
+    String(expense.syncVersion || 1),
+  ];
+}
+
+function sheetRowToExpense(row) {
+  const item = {};
+  SHEET_COLUMNS.forEach((column, index) => {
+    item[column] = row[index] || "";
+  });
+  return normalizeExpense(item);
+}
+
+function isRemoteNewer(remote, local) {
+  if (!local) return true;
+  const remoteVersion = Number(remote.syncVersion) || 0;
+  const localVersion = Number(local.syncVersion) || 0;
+  if (remoteVersion !== localVersion) return remoteVersion > localVersion;
+  return (remote.updatedAt || "") > (local.updatedAt || "");
+}
+
 function getDeviceId() {
   const key = "mobile-ledger-device-id";
   try {
@@ -203,6 +266,145 @@ async function saveExpenses() {
   }
 }
 
+function loadGoogleIdentityScript() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.oauth2) {
+      resolve();
+      return;
+    }
+
+    const existingScript = document.querySelector("script[data-google-identity]");
+    if (existingScript) {
+      existingScript.addEventListener("load", resolve, { once: true });
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = "true";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Google Identity script failed to load."));
+    document.head.appendChild(script);
+  });
+}
+
+async function requestGoogleAccessToken() {
+  await loadGoogleIdentityScript();
+
+  return new Promise((resolve, reject) => {
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_SCOPE,
+      callback: (response) => {
+        if (response.error) {
+          reject(new Error(response.error));
+          return;
+        }
+
+        accessToken = response.access_token;
+        resolve(accessToken);
+      },
+    });
+
+    tokenClient.requestAccessToken({ prompt: accessToken ? "" : "consent" });
+  });
+}
+
+async function sheetRequest(path, options = {}) {
+  if (!accessToken) {
+    await requestGoogleAccessToken();
+  }
+
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (response.status === 401) {
+    accessToken = "";
+    await requestGoogleAccessToken();
+    return sheetRequest(path, options);
+  }
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "Google Sheet request failed.");
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+async function readSheetExpenses() {
+  const range = encodeURIComponent(`${SHEET_NAME}!A:M`);
+  const data = await sheetRequest(`/values/${range}`);
+  const rows = data.values || [];
+  return rows.slice(1).filter((row) => row[0]).map(sheetRowToExpense);
+}
+
+async function writeSheetExpenses(items) {
+  const now = new Date().toISOString();
+  const syncedItems = items.map((expense) =>
+    normalizeExpense({
+      ...expense,
+      syncStatus: "synced",
+      syncedAt: now,
+    })
+  );
+  const values = [SHEET_COLUMNS, ...syncedItems.map(expenseToSheetRow)];
+  const range = encodeURIComponent(`${SHEET_NAME}!A:M`);
+
+  await sheetRequest(`/values/${range}?valueInputOption=RAW`, {
+    method: "PUT",
+    body: JSON.stringify({ values }),
+  });
+
+  return syncedItems;
+}
+
+function mergeLocalAndRemote(localItems, remoteItems) {
+  const merged = new Map();
+
+  localItems.forEach((item) => {
+    merged.set(item.id, normalizeExpense(item));
+  });
+
+  remoteItems.forEach((remote) => {
+    const local = merged.get(remote.id);
+    if (isRemoteNewer(remote, local)) {
+      merged.set(remote.id, normalizeExpense(remote));
+    }
+  });
+
+  return Array.from(merged.values());
+}
+
+async function syncWithGoogleSheet() {
+  setSyncStatus("同步中...");
+  syncButton.disabled = true;
+
+  try {
+    const remoteExpenses = await readSheetExpenses();
+    const merged = mergeLocalAndRemote(expenses, remoteExpenses);
+    const syncedItems = await writeSheetExpenses(merged);
+    expenses = syncedItems;
+    await saveExpenses();
+    render();
+    setSyncStatus(`同步完成，共 ${getVisibleExpenses().length} 筆目前紀錄。`);
+  } catch (error) {
+    setSyncStatus("同步失敗，請確認 Google Sheet 權限與 OAuth 設定。", true);
+  } finally {
+    syncButton.disabled = !accessToken;
+  }
+}
+
 function getVisibleExpenses() {
   return expenses.filter((expense) => !expense.deletedAt);
 }
@@ -210,6 +412,24 @@ function getVisibleExpenses() {
 function setFormStatus(message, isWarning = false) {
   formStatus.textContent = message;
   formStatus.classList.toggle("warning", isWarning);
+}
+
+function setSyncStatus(message, isWarning = false) {
+  syncStatus.textContent = message;
+  syncStatus.classList.toggle("warning", isWarning);
+}
+
+function updateSyncUi(isConnected) {
+  const isSupportedOrigin = ["http:", "https:"].includes(location.protocol);
+  syncBadge.textContent = isConnected ? "已連接" : "未連接";
+  syncBadge.classList.toggle("connected", isConnected);
+  connectGoogleButton.disabled = !isSupportedOrigin;
+  syncButton.disabled = !isConnected || !isSupportedOrigin;
+  connectGoogleButton.textContent = isConnected ? "重新授權" : "連接 Google";
+
+  if (!isSupportedOrigin) {
+    setSyncStatus("Google 同步需要 HTTPS 網址或 localhost；直接開 HTML 檔無法授權。", true);
+  }
 }
 
 function getCategory(categoryId) {
@@ -517,6 +737,25 @@ function bindEvents() {
     resetForm();
     render();
   });
+
+  connectGoogleButton.addEventListener("click", async () => {
+    if (!["http:", "https:"].includes(location.protocol)) {
+      setSyncStatus("請先部署到 HTTPS 網址，或用 localhost 預覽後再連接 Google。", true);
+      return;
+    }
+
+    setSyncStatus("正在連接 Google...");
+    try {
+      await requestGoogleAccessToken();
+      updateSyncUi(true);
+      setSyncStatus("已連接 Google，可開始同步。");
+    } catch {
+      updateSyncUi(false);
+      setSyncStatus("Google 連接失敗，請確認 OAuth Client ID 和授權來源設定。", true);
+    }
+  });
+
+  syncButton.addEventListener("click", syncWithGoogleSheet);
 }
 
 async function init() {
@@ -524,6 +763,7 @@ async function init() {
   setDefaultDates();
   bindEvents();
   expenses = await loadExpenses();
+  updateSyncUi(false);
   render();
 }
 

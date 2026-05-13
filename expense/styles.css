@@ -143,6 +143,7 @@ h2 {
 }
 
 .primary-button,
+.secondary-button,
 .icon-button,
 .nav-button,
 .segment,
@@ -157,6 +158,25 @@ h2 {
   background: var(--primary);
   color: var(--primary-ink);
   font-weight: 850;
+}
+
+.primary-button.compact,
+.secondary-button {
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-weight: 850;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.secondary-button {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--primary);
 }
 
 .form-status {
@@ -300,6 +320,44 @@ h2 {
 
 .period-field {
   margin-top: 14px;
+}
+
+.sync-panel {
+  box-shadow: none;
+}
+
+.sync-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sync-badge {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.sync-badge.connected {
+  color: var(--primary);
+}
+
+.sync-status {
+  min-height: 1.4em;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.sync-status.warning {
+  color: var(--danger);
 }
 
 .summary-grid {
