@@ -1,0 +1,10 @@
+{
+  "name": "記帳小幫手",
+  "short_name": "記帳",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f2ea",
+  "theme_color": "#176b5c",
+  "lang": "zh-Hant",
+  "description": "手機優先的本機記帳工具，可新增消費並查看日、月、年統計。"
+}

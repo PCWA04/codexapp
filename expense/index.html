@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#176b5c" />
+    <title>記帳小幫手</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Daily Ledger</p>
+          <h1>記帳小幫手</h1>
+        </div>
+        <div class="today-chip" id="todayTotal">今日 $0</div>
+      </header>
+
+      <section class="view active" id="entryView" aria-labelledby="entryTitle">
+        <form class="entry-form" id="expenseForm">
+          <div class="section-title">
+            <h2 id="entryTitle">新增一筆</h2>
+            <button class="icon-button" id="resetFormButton" type="button" aria-label="清空表單" title="清空表單">
+              <span aria-hidden="true">↺</span>
+            </button>
+          </div>
+
+          <input type="hidden" id="expenseId" />
+
+          <label class="field">
+            <span>日期</span>
+            <input id="dateInput" type="date" required />
+          </label>
+
+          <label class="field">
+            <span>金額</span>
+            <input id="amountInput" type="number" inputmode="decimal" min="1" step="1" placeholder="0" required />
+          </label>
+
+          <label class="field">
+            <span>類別</span>
+            <select id="categoryInput" required></select>
+          </label>
+
+          <label class="field">
+            <span>備註</span>
+            <input id="noteInput" type="text" maxlength="60" placeholder="例如：午餐、捷運、咖啡" />
+          </label>
+
+          <button class="primary-button" id="submitButton" type="submit">儲存</button>
+          <p class="form-status" id="formStatus" aria-live="polite"></p>
+        </form>
+
+        <section class="panel">
+          <div class="section-title">
+            <h2>最近紀錄</h2>
+            <span id="recordCount" class="muted"></span>
+          </div>
+          <div class="expense-list" id="recentList"></div>
+        </section>
+      </section>
+
+      <section class="view" id="statsView" aria-labelledby="statsTitle">
+        <div class="section-title">
+          <h2 id="statsTitle">消費統計</h2>
+          <button class="icon-button danger" id="clearAllButton" type="button" aria-label="清除全部資料" title="清除全部資料">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <div class="segmented" role="tablist" aria-label="統計期間">
+          <button class="segment active" data-period="day" type="button">日</button>
+          <button class="segment" data-period="month" type="button">月</button>
+          <button class="segment" data-period="year" type="button">年</button>
+        </div>
+
+        <label class="field period-field">
+          <span id="periodLabel">選擇日期</span>
+          <input id="periodInput" type="date" />
+        </label>
+
+        <div class="summary-grid">
+          <article class="metric">
+            <span>總消費</span>
+            <strong id="periodTotal">$0</strong>
+          </article>
+          <article class="metric">
+            <span>筆數</span>
+            <strong id="periodCount">0</strong>
+          </article>
+        </div>
+
+        <section class="panel">
+          <h2>分類統計</h2>
+          <div class="category-chart" id="categoryChart"></div>
+        </section>
+
+        <section class="panel">
+          <h2>期間紀錄</h2>
+          <div class="expense-list" id="periodList"></div>
+        </section>
+      </section>
+
+      <nav class="bottom-nav" aria-label="主要導覽">
+        <button class="nav-button active" data-view="entryView" type="button">
+          <span aria-hidden="true">＋</span>
+          <span>記帳</span>
+        </button>
+        <button class="nav-button" data-view="statsView" type="button">
+          <span aria-hidden="true">▦</span>
+          <span>統計</span>
+        </button>
+      </nav>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator && ["http:", "https:"].includes(location.protocol)) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("sw.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>
