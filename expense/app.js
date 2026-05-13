@@ -6,6 +6,7 @@ const GOOGLE_CLIENT_ID = "189512278313-fmmadnbqpl80pciircnihm3i87cgtq54.apps.goo
 const GOOGLE_SHEET_ID = "1rDVgLrX1igIEyJI7bqtfWhyRIlH1wD3jdF4jDrPr780";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const SHEET_NAME = "Expenses";
+const APP_VERSION = "sync-v3";
 const SHEET_COLUMNS = [
   "id",
   "date",
@@ -334,12 +335,43 @@ async function sheetRequest(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || "Google Sheet request failed.");
+    const message = await parseGoogleError(response);
+    throw new Error(message);
   }
 
   if (response.status === 204) return null;
   return response.json();
+}
+
+async function parseGoogleError(response) {
+  try {
+    const data = await response.json();
+    return data.error?.message || `Google API ${response.status}`;
+  } catch {
+    return `Google API ${response.status}`;
+  }
+}
+
+function getSyncErrorHint(error) {
+  const message = error?.message || "未知錯誤";
+
+  if (message.includes("API has not been used") || message.includes("disabled")) {
+    return "Google Sheets API 尚未啟用，請到 Google Cloud 專案啟用 Sheets API。";
+  }
+
+  if (message.includes("insufficient") || message.includes("permission") || message.includes("PERMISSION_DENIED")) {
+    return "目前登入的 Google 帳號沒有這份 Sheet 的編輯權限。";
+  }
+
+  if (message.includes("Unable to parse range") || message.includes("Requested entity was not found")) {
+    return "找不到工作表 Expenses，請確認 Google Sheet 分頁名稱完全是 Expenses。";
+  }
+
+  if (message.includes("invalid_client") || message.includes("origin")) {
+    return "OAuth 來源設定不符合，請把 https://pcwa04.github.io 加到 Authorized JavaScript origins。";
+  }
+
+  return message;
 }
 
 async function readSheetExpenses() {
@@ -399,7 +431,8 @@ async function syncWithGoogleSheet() {
     render();
     setSyncStatus(`同步完成，共 ${getVisibleExpenses().length} 筆目前紀錄。`);
   } catch (error) {
-    setSyncStatus("同步失敗，請確認 Google Sheet 權限與 OAuth 設定。", true);
+    console.error(error);
+    setSyncStatus(`同步失敗：${getSyncErrorHint(error)}`, true);
   } finally {
     syncButton.disabled = !accessToken;
   }
@@ -429,6 +462,8 @@ function updateSyncUi(isConnected) {
 
   if (!isSupportedOrigin) {
     setSyncStatus("Google 同步需要 HTTPS 網址或 localhost；直接開 HTML 檔無法授權。", true);
+  } else if (!isConnected && !syncStatus.textContent) {
+    setSyncStatus(`版本 ${APP_VERSION}，連接後可同步到 Google Sheet。`);
   }
 }
 
@@ -749,9 +784,10 @@ function bindEvents() {
       await requestGoogleAccessToken();
       updateSyncUi(true);
       setSyncStatus("已連接 Google，可開始同步。");
-    } catch {
+    } catch (error) {
+      console.error(error);
       updateSyncUi(false);
-      setSyncStatus("Google 連接失敗，請確認 OAuth Client ID 和授權來源設定。", true);
+      setSyncStatus(`Google 連接失敗：${getSyncErrorHint(error)}`, true);
     }
   });
 
